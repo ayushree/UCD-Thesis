@@ -4,6 +4,7 @@ import re
 import operator
 import random
 from collections import defaultdict, deque
+from itertools import combinations_with_replacement, permutations
 
 start_symbol = '*'
 stop_symbol = 'STOP'
@@ -13,7 +14,8 @@ log_prob_of_zero = -1000.0
 valid_tags = ['PAON', 'street', 'city', 'district', 'county']
 smoothing_factor_v = len(valid_tags)
 
-input_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses.csv"
+input_train_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_train.csv"
+input_test_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_test.csv"
 
 tags = {}
 
@@ -104,6 +106,7 @@ def join_cols(df):
         for j in range(len(subset_df.columns)):
             if isinstance(subset_df.iloc[i][j], str):
                 new_address += subset_df.iloc[i][j]
+        new_address = new_address[1:]
         tagged_complete_address.append(new_address)
     tagged_complete_address = pd.DataFrame(tagged_complete_address)
     return tagged_complete_address
@@ -197,19 +200,24 @@ def emission_probability(prior_prob):
 
 def create_start_link():
     for tag in valid_tags:
-        curr_tag = start_symbol + "-" + tag
+        curr_tag = start_symbol + "-" + start_symbol + "-" + tag
         feature_vector_labels.append(curr_tag)
+    for tag1 in valid_tags:
+        for tag2 in valid_tags:
+            second_tag = start_symbol + "-" + tag1 + "-" + tag2
+            feature_vector_labels.append(second_tag)
 
 
 def create_end_link():
-    for tag in valid_tags:
-        curr_tag = tag + "-" + stop_symbol
-        feature_vector_labels.append(curr_tag)
+    for tag1 in valid_tags:
+        for tag2 in valid_tags:
+            curr_tag = tag1 + "-" + tag2 + "-" + stop_symbol
+            feature_vector_labels.append(curr_tag)
 
 
-def create_bigram_link():
-    for bigram in bigram_tags_count.keys():
-        feature_vector_labels.append(bigram)
+def create_trigram_link():
+    for trigram in trigram_tags_count.keys():
+        feature_vector_labels.append(trigram)
 
 
 def create_words_link():
@@ -221,23 +229,26 @@ def create_words_link():
 
 
 def get_tag_seq(address):
-    first_tag = start_tag + "-" + (address[0].split("/"))[1]
-    last_tag = (address[-1].split("/"))[1] + "-" + end_tag
-    tag_seq = [first_tag]
-    for i in range(len(address) - 1):
+    first_tag = start_symbol + "-" + start_symbol + "-" + (address[0].split("/"))[1]
+    second_tag = start_symbol + "-" + (address[0].split("/"))[1] + "-" + (address[1].split("/"))[1]
+    last_tag = (address[-2].split("/"))[1] + "-" + (address[-1].split("/"))[1] + "-" + stop_symbol
+    tag_seq = [first_tag, second_tag]
+    for i in range(len(address) - 2):
         curr_tag = (address[i].split("/"))[1]
         next_tag = (address[i + 1].split("/"))[1]
-        curr_tag_seq = curr_tag + "-" + next_tag
+        next_to_next_tag = (address[i + 2].split("/"))[1]
+        curr_tag_seq = curr_tag + "-" + next_tag + "-" + next_to_next_tag
         tag_seq.append(curr_tag_seq)
     tag_seq.append(last_tag)
     return tag_seq
 
 
 def encode_features(address):
-    address = address.split(" ")[1:]
+    # print("in encode_features, address is: ", address)
     tag_seq = get_tag_seq(address)
 
     feature_dict = {k: 0 for k in feature_vector_labels}
+    # print("feature dict:", feature_dict)
     # length = len(feature_dict)
     # print(len(feature_dict))
     for tag in tag_seq:
@@ -245,19 +256,7 @@ def encode_features(address):
     for add in address:
         if add in feature_dict.keys():
             feature_dict[add] += 1
-    feature_list = [feature_dict[key] for key in feature_dict.keys()]
-    feature_list = pd.Series(feature_list)
-    # print(type(feature_list))
-    return feature_list
-
-
-def create_feature_vectors():
-    create_start_link()
-    create_end_link()
-    create_bigram_link()
-    create_words_link()
-    for index, address in new_df[0].iteritems():
-        feature_vector = encode_features(address)
+    return feature_dict
 
 
 def compute_start_prob_unigram(data):
@@ -299,7 +298,7 @@ def compute_end_prob_bigram(data):
         transitions_probability[k + "-" + stop_symbol] = end_p[k] / len(data)
 
 
-def viterbi(address, taglist, known_words, q_values, e_values):
+def viterbi(address, taglist, known_words, q_values, e_values, weights_vec):
     tagged = []
 
     # pi[(k, u, v)]: max probability of a tag sequence ending in tags u, v at position k
@@ -324,6 +323,7 @@ def viterbi(address, taglist, known_words, q_values, e_values):
         # The Viterbi algorithm
 
     words = [word if word in known_words else rare_symbol for word in address]
+
     n = len(words)
 
     for k in range(1, n + 1):
@@ -333,30 +333,36 @@ def viterbi(address, taglist, known_words, q_values, e_values):
                 max_tag = None
                 for w in S(k - 2):
 
-                    if e_values.get((words[k - 1] + "/" + v), 0) != 0:
-                        print("entering loop")
-                        # print("pi: ", pi.get((k - 1, w, u), log_prob_of_zero))
-                        # print("q: ", q_values[w + "-" + u + "-" + v])
-                        # print("e: ", e_values[words[k - 1] + "/" + v])
-                        # print("testing:")
-                        # if (k - 1, w, u) in pi.keys():
-                        #     print("yes, val: ", pi[(k - 1, w, u)])
-                        # else:
-                        #     print("should be -1000")
-                        print("k-1,w,u", k - 1, w, u)
+                    # if e_values.get((words[k - 1] + "/" + v), 0) != 0:
+                    # print("entering loop")
+                    # print("pi: ", pi.get((k - 1, w, u), log_prob_of_zero))
+                    # print("q: ", q_values[w + "-" + u + "-" + v])
+                    # print("e: ", e_values[words[k - 1] + "/" + v])
+                    # print("testing:")
+                    # if (k - 1, w, u) in pi.keys():
+                    #     print("yes, val: ", pi[(k - 1, w, u)])
+                    # else:
+                    #     print("should be -1000")
+                    if (words[k - 1] + "/" + v) in e_values.keys():
+                        e_val = e_values[(words[k - 1] + "/" + v)]
+                        e_val_wt = weights_vec[words[k - 1] + "/" + v]
+                    else:
+                        e_val = 0.001
+                        e_val_wt = 0.0000000000000001
+                    # print("k-1,w,u:", k - 1, w, u)
 
-                        if pi[k - 1, w, u] == float('-Inf'):
-                            pi_val = log_prob_of_zero
-                        else:
-                            pi_val = pi[k - 1, w, u]
-                        print("pi score: ", pi_val)
-                        score = pi_val + \
-                                q_values[w + "-" + u + "-" + v] + \
-                                e_values[words[k - 1] + "/" + v]
-                        print("score", score)
-                        if score > max_score:
-                            max_score = score
-                            max_tag = w
+                    if pi[k - 1, w, u] == float('-Inf'):
+                        pi_val = 0.0
+                    else:
+                        pi_val = pi[k - 1, w, u]
+                    # print("pi score: ", pi_val)
+                    score = pi_val + \
+                            (weights_vec[w + "-" + u + "-" + v] * q_values[w + "-" + u + "-" + v]) + \
+                            (e_val * e_val_wt)
+                    # print("score", score)
+                    if score > max_score:
+                        max_score = score
+                        max_tag = w
                 pi[(k, u, v)] = max_score
                 bp[(k, u, v)] = max_tag
 
@@ -368,7 +374,7 @@ def viterbi(address, taglist, known_words, q_values, e_values):
             # if u + "-" + v + "-" + stop_symbol in q_values.keys():
             # print(pi.get((n, u, v), -1000))
             # print(q_values[u + "-" + v + "-" + stop_symbol])
-            score = pi.get((n, u, v), log_prob_of_zero) + \
+            score = pi.get((n, u, v), 0.0) + \
                     q_values[u + "-" + v + "-" + stop_symbol]
             # print("Score: ", score)
             # print("u: ", u)
@@ -386,29 +392,149 @@ def viterbi(address, taglist, known_words, q_values, e_values):
             tags.append(bp[(k + 2, tags[i + 1], tags[i])])
     tags.reverse()
 
-    tagged_sentence = deque()
+    tagged_sentence = []
     for j in range(0, n):
         tagged_sentence.append(address[j] + '/' + tags[j])
-    tagged_sentence.append('\n')
-    tagged.append(' '.join(tagged_sentence))
+    # print(tagged_sentence)
+    # tagged_sentence.append('\n')
 
-    return tagged
+    return tagged_sentence
 
 
-def phi(data):
+# def viterbi()
+def structured_perceptron(data):
+    weights_vec = {k: 0 for k in feature_vector_labels}
+    print("training!")
     for index, address in data[0].iteritems():
+        print(index)
         address = address.split(" ")
         word_seq = []
         for part in address:
             part = part.split("/")[0]
             word_seq.append(part)
-        result = viterbi(word_seq, valid_tags, known_words, transitions_probability, state_obs_pair_dict)
-        print(result)
+        # print("actual address: ", address)
+        encoded_actual_address = encode_features(address)
+        # print("encoded actual address: ", encoded_actual_address)
+
+        result = viterbi(word_seq, valid_tags, known_words, transitions_probability, state_obs_pair_dict, weights_vec)
+        # print("predicted tag seq: ", result)
+        encoded_predicted_address = encode_features(result)
+        # print("encoded predicted tag seq: ", encoded_predicted_address)
+        if len(encoded_predicted_address) == len(encoded_actual_address):
+            for key in encoded_actual_address.keys():
+                diff = encoded_actual_address[key] - encoded_predicted_address[key]
+                if diff != 0:
+                    weights_vec[key] += diff
+        else:
+            print("lengths don't match")
+    # weights_vec += diff
+    # print("\n")
+    return weights_vec
 
 
-df = read_data(input_fp)
+# def dot(word_list, predicted_tag_tuple, weights_vec):
+#     address = ['']
+#     for i in range(len(word_list)):
+#         tagged_word = word_list[i] + "/" + predicted_tag_tuple[i]
+#         address.append(tagged_word)
+#     encoded_vec = phi(address)
+#     dot_product = 0
+#     for i in range(len(encoded_vec)):
+#         dot_product += encoded_vec[i] * weights_vec[i]
+#     return (dot_product, encoded_vec, address)
+#
+#
+# def actual_structured_perceptron(data):
+#     weights_vec = []
+#     zero_vec = []
+#
+#     for i in range(len(data)):
+#         weights_vec.append(0)
+#         zero_vec.append(0)
+#
+#     for index, address in data[0].iteritems():
+#         print(index)
+#         max_score = float('-Inf')
+#         most_likely_tag_seq = []
+#         set_of_tag_seq = {}
+#         address = address.split(" ")
+#         print(address)
+#         phi_of_actual_output = phi(address)
+#         phi_of_predicted_vec = []
+#         word_seq = []
+#         actual_tag_seq = []
+#         for part in address:
+#             if part != '':
+#                 word = part.split("/")[0]
+#                 tag = part.split("/")[1]
+#                 word_seq.append(word)
+#                 actual_tag_seq.append(tag)
+#         n = len(word_seq)
+#         combinations = combinations_with_replacement(valid_tags, n)
+#         for i in list(combinations):
+#             permutations_of_i = permutations(list(i), n)
+#             for j in list(permutations_of_i):
+#                 if j not in set_of_tag_seq.keys():
+#                     set_of_tag_seq[j] = 0
+#         for key in set_of_tag_seq.keys():
+#             result = dot(word_seq, key, weights_vec)
+#             score = result[0]
+#             if score > max_score:
+#                 max_score = score
+#                 most_likely_tag_seq = result[1]
+#                 phi_of_predicted_vec = result[2]
+#         print(most_likely_tag_seq)
+#         diff = phi_of_actual_output - phi_of_predicted_vec
+#         if diff != zero_vec:
+#             weights_vec += diff
+#     return weights_vec
+
+def predict(df, weights):
+    print("testing!!")
+    matches0 = 0
+    matches1 = 0
+    matches2 = 0
+    matches3 = 0
+    for index, address in df[0].iteritems():
+        diff = 0
+        print(index)
+        address = address.split(" ")
+        tag_seq = []
+        word_seq = []
+        for part in address:
+            word = part.split("/")[0]
+            tag = part.split("/")[1]
+            word_seq.append(word)
+            tag_seq.append(tag)
+
+        result = viterbi(word_seq, valid_tags, known_words, transitions_probability, state_obs_pair_dict, weights)
+        actual_encoded_add = encode_features(address)
+        predicted_encoded_add = encode_features(result)
+        for key in actual_encoded_add.keys():
+            if actual_encoded_add[key] != predicted_encoded_add[key]:
+                diff += 1
+        if diff == 0:
+            matches0 += 1
+        if diff > 1:
+            matches1 += 1
+        if diff > 2:
+            matches2 += 1
+        if diff > 3:
+            matches3 += 1
+    return [matches0 / len(df), matches1 / len(df), matches2 / len(df), matches3 / len(df)]
+
+    # print("actual test vec:", address)
+    # print("test predicted vec:", result)
+
+
+df = read_data(input_train_fp)
+test_df = read_data(input_test_fp)
 # print("original df", df)
 tagged_train_data = tag_train_data(df)
+tagged_test_data = tag_train_data(test_df)
+
+joined_test_data = join_cols(tagged_test_data)
+
 unique_words_dict_subset = {key: value for key, value in complete_unique_words_dict.items() if value > 5.0}
 known_words = [k for k, v in unique_words_dict_subset.items()]
 # print("\nknown words", known_words)
@@ -427,8 +553,25 @@ compute_start_prob_unigram(new_df)
 compute_start_prob_bigram(new_df)
 compute_end_prob_bigram(new_df)
 
-print("transitions_probability", transitions_probability)
+# print("transitions_probability", transitions_probability)
+# create_words_link()
+# print(feature_vector_labels)
 # print("emission prob", state_obs_pair_dict)
+# for index, address in new_df[0].iteritems():
+#     phi(address)
 
-# create_feature_vectors()
-phi(new_df)
+create_start_link()
+create_end_link()
+create_trigram_link()
+create_words_link()
+# print(feature_vector_labels)
+# print(len(feature_vector_labels))
+
+training_weights = structured_perceptron(new_df)
+print(training_weights)
+
+accuracy_vec = predict(joined_test_data, training_weights)
+print("exact accuracy:", accuracy_vec[0])
+print("one wrong tag accuracy:", accuracy_vec[1])
+print("two wrong tags accuracy:", accuracy_vec[2])
+print("three wrong tags accuracy", accuracy_vec[3])
