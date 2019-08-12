@@ -1,12 +1,14 @@
 import pandas as pd
 import re
 from nltk.corpus import stopwords
+import matplotlib.pyplot as plt
+import numpy as np
 
 # storing all english stop words in a variable called stpwrds
 stpwrds = stopwords.words('english')
 
 # specifying path for the input file
-input_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/addresses_month.csv"
+input_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/addresses_year.csv"
 
 
 # function that reads a csv file containing appropriate housing data
@@ -112,8 +114,8 @@ def normalise(address):
 
 
 # specifying output csv file path for both test and train data
-output_train_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_train.csv"
-output_test_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_test.csv"
+output_train_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_year_addresses_train.csv"
+output_test_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_year_addresses_test.csv"
 
 
 # driver function that takes the path for the input file, output train file and output test file as input
@@ -122,15 +124,18 @@ output_test_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnal
 # splits the new dataframe into train and test data and writes them to the appropriate csv files
 def standardise_data(input_path, output_train_path, output_test_path):
     df = read_data(input_path)
-    count = 0
+
+    col_count = 0
     for col in df.columns:
         if col != 'UID' and col != 'SAON' and col != 'locality':
             add_col = df[col]
+            count = 0
+            col_count += 1
             for index, address in add_col.iteritems():
                 final_address = normalise(address)
                 add_col[index] = final_address
                 count += 1
-                print(count)
+                print(col_count, "--", count)
             df[col] = add_col
     # postcode_col = df['postcode']
     # for index, address in postcode_col.iteritems():
@@ -147,12 +152,54 @@ def standardise_data(input_path, output_train_path, output_test_path):
     print("written to file!!!!!")
 
 
-df = read_data(input_file_path)
-for col in df.columns:
-    # print(df.columns)
-    print(col)
-    print(df[col].isnull().sum().sum() / len(df[col]))
+def missing_data(df):
+    for col in df.columns:
+        # print(df.columns)
+        print(col)
+        print(df[col].isnull().sum().sum() / len(df[col]))
+
+
+def unique_vals(df):
+    unique_vals_dict = {}
+    labels = []
+    values = []
+    for col in df.columns:
+        if col != 'UID' and col != 'price' and col != 'postcode' and col != 'SAON' and col != 'locality':
+            unique_vals_dict[col] = len(df[col].unique()) / len(df)
+            labels.append(col)
+            values.append(len(df[col].unique()) / len(df))
+            if col == 'county':
+                print(len(df[col].unique()))
+    index = np.arange(len(labels))
+    plt.bar(index, values)
+    plt.xlabel('Column Names', fontsize=5)
+    plt.ylabel('Percentage of Unique Values', fontsize=5)
+    plt.xticks(index, labels, fontsize=5, rotation=30)
+    plt.title('Column wise Unique Values (%)')
+    plt.savefig('unique_vals_per_column.png')
+
+
+def price_summary(df):
+    county_freq = pd.DataFrame(df['county'].value_counts())
+    most_freq_county = list(county_freq.index)[:5]
+    county_wise_price_dict = {}
+    for county in most_freq_county:
+        county_wise_price_dict[county] = []
+    for index, price in df['price'].iteritems():
+        if df.iloc[index]['county'] in most_freq_county:
+            county = df.iloc[index]['county']
+            county_wise_price_dict[county].append(price)
+    print(county_wise_price_dict)
+
+
+def EDA(input_path):
+    df = read_data(input_path)
+    missing_data(df)
+    unique_vals(df)
+    price_summary(df)
     # dropping SAON and locality
+
 
 # calling driver function
 standardise_data(input_file_path, output_train_file_path, output_test_file_path)
+# EDA(input_file_path)

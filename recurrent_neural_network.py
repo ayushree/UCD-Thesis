@@ -5,6 +5,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
 from keras.layers import Dense, LSTM, InputLayer, Bidirectional, TimeDistributed, Embedding, Activation, Flatten
 from keras.optimizers import Adam
+from keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 from keras import backend as K
 
@@ -13,7 +14,8 @@ input_test_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsin
 
 start_symbol = '*'
 stop_symbol = 'STOP'
-rare_symbol = '_RARE_'
+new_symbol = 'NEW'
+pad_symbol = 'PAD'
 smoothing_factor_lambda = 0.1
 log_prob_of_zero = -1000.0
 valid_tags = ['PAON', 'street', 'city', 'district', 'county']
@@ -32,8 +34,11 @@ end_tag = '<end>'
 feature_vector_labels = []
 word_to_tag_dict = {}
 
-words_vocab = set([])
-tags_vocab = set([])
+words_vocab = {}
+tags_vocab = {}
+
+word_encode_key = {}
+tag_encode_key = {}
 
 
 def read_data(file):
@@ -68,8 +73,7 @@ def tag_train_data(data):
                         length = len(word)
                         word = 'D' * length
                     get_word_corpus(word)
-                    # if 'D'*len(word) != len(word):
-                    #     if word
+
                     tagged_word = word + "/" + col
                     tagged_part = tagged_part + " " + tagged_word
                     if word not in tags.keys() and isinstance(word, str):
@@ -119,53 +123,62 @@ def separate_words_and_tags(address):
 def build_vocab():
     for sen in train_sentences:
         for word in sen:
-            words_vocab.add(word)
+            words_vocab[word] = 0.0
     for sen_tag in train_tags:
         for tag in sen_tag:
-            tags_vocab.add(tag)
+            tags_vocab[tag] = 0.0
+
+
+def create_embedding_dict():
+    i = 2
+    word_encode_key[pad_symbol] = 0
+    word_encode_key[new_symbol] = 1
+    for word in words_vocab.keys():
+        word_encode_key[word] = i
+        i += 1
+    j = 1
+    tag_encode_key[pad_symbol] = 0
+    for tag in tags_vocab.keys():
+        tag_encode_key[tag] = j
+        j += 1
 
 
 def embed_training_words():
     for sen in train_sentences:
         sen_int = []
         for word in sen:
-            try:
-                sen_int.append(word2index[word])
-            except KeyError:
-                sen_int.append(word2index['-OOV-'])
-        train_sentences_input.append(sen_int)
+            if word in word_encode_key.keys():
+                sen_int.append(word_encode_key[word])
+            else:
+                sen_int.append(word_encode_key[new_symbol])
 
-    for s in train_tags:
-        train_sentences_output.append([tag2index[t] for t in s])
+        train_sentences_input.append(sen_int)
+    for tag_sen in train_tags:
+        sen_int = []
+        for tag in tag_sen:
+            sen_int.append(tag_encode_key[tag])
+        train_sentences_output.append(sen_int)
 
 
 def embed_test_words():
     for sen in test_sentences:
         sen_int = []
         for word in sen:
-            try:
-                sen_int.append(word2index[word])
-            except KeyError:
-                sen_int.append(word2index['-OOV-'])
+            if word in word_encode_key.keys():
+                sen_int.append(word_encode_key[word])
+            else:
+                sen_int.append(word_encode_key[new_symbol])
         test_sentences_input.append(sen_int)
 
-    for s in test_tags:
-        test_sentences_output.append([tag2index[t] for t in s])
-
-
-def encode_one_hot(sequences, classes):
-    categorical_seq = []
-    for s in sequences:
-        categories = []
-        for item in s:
-            categories.append(np.zeros(classes))
-            categories[-1][item] = 1.0
-        categorical_seq.append(categories)
-    return np.array(categorical_seq)
+    for tag_sen in test_tags:
+        sen_int = []
+        for tag in tag_sen:
+            sen_int.append(tag_encode_key[tag])
+        test_sentences_output.append(sen_int)
 
 
 def ignore_class_accuracy(to_ignore=0):
-    def ignore_accuracy(y_true, y_pred):
+    def true_accuracy(y_true, y_pred):
         y_true_class = K.argmax(y_true, axis=-1)
         y_pred_class = K.argmax(y_pred, axis=-1)
 
@@ -174,7 +187,7 @@ def ignore_class_accuracy(to_ignore=0):
         accuracy = K.sum(matches) / K.maximum(K.sum(ignore_mask), 1)
         return accuracy
 
-    return ignore_accuracy
+    return true_accuracy
 
 
 input_train_data = read_data(input_fp)
@@ -193,13 +206,7 @@ for index, address in joined_data[0].iteritems():
  test_tags) = train_test_split(sentences, sentence_tags, test_size=0.2)
 
 build_vocab()
-
-word2index = {w: i + 2 for i, w in enumerate(list(words_vocab))}
-word2index['-PAD-'] = 0
-word2index['-OOV-'] = 1
-
-tag2index = {t: i + 1 for i, t in enumerate(list(tags_vocab))}
-tag2index['-PAD-'] = 0  # The special value used to padding
+create_embedding_dict()
 
 train_sentences_input = []
 train_sentences_output = []
@@ -209,12 +216,16 @@ test_sentences_output = []
 embed_training_words()
 embed_test_words()
 
-# print(sentences_input, sentences_output)
-# print(sentences, sentence_tags)
-
 len_longest_sen = len(max(train_sentences_input, key=len))
 print(len_longest_sen)
-
+print("train input")
+print(len(train_sentences_input))
+print("train output")
+print(len(train_sentences_output))
+print("test input")
+print(len(test_sentences_input))
+print("test output")
+print(len(test_sentences_output))
 train_sentences_input = pad_sequences(train_sentences_input, maxlen=len_longest_sen, padding='post')
 train_sentences_output = pad_sequences(train_sentences_output, maxlen=len_longest_sen, padding='post')
 test_sentences_input = pad_sequences(test_sentences_input, maxlen=len_longest_sen, padding='post')
@@ -222,19 +233,22 @@ test_sentences_output = pad_sequences(test_sentences_output, maxlen=len_longest_
 
 model = Sequential()
 model.add(InputLayer(input_shape=(len_longest_sen,)))
-model.add(Embedding(len(word2index), 128))
+model.add(Embedding(len(word_encode_key), 128))
 model.add(Bidirectional(LSTM(256, return_sequences=True)))
-model.add(TimeDistributed(Dense(len(tag2index))))
+model.add(TimeDistributed(Dense(len(tag_encode_key))))
 model.add(Activation('softmax'))
 
-model.compile(loss='categorical_crossentropy', optimizer=Adam(0.001), metrics=['accuracy', ignore_class_accuracy(0)])
+model.compile(loss='categorical_crossentropy', optimizer=Adam(0.001), metrics=['accuracy'])
 
 model.summary()
+# print("using inbuilt one hot encoding")
+# print(to_categorical(train_sentences_output, num_classes=len(tag_encode_key)))
+# print("using diff function")
+# test = to_categorical2(train_sentences_output, len(tag_encode_key))
+# print(test)
 
-categorical_sentences_output = encode_one_hot(train_sentences_output, len(tag2index))
-
-model.fit(train_sentences_input, encode_one_hot(train_sentences_output, len(tag2index)), epochs=5,
+model.fit(train_sentences_input, to_categorical(train_sentences_output, num_classes=len(tag_encode_key)), epochs=1,
           validation_split=0.2)
 
-scores = model.evaluate(test_sentences_input, encode_one_hot(test_sentences_output, len(tag2index)))
+scores = model.evaluate(test_sentences_input, to_categorical(test_sentences_output, num_classes=len(tag_encode_key)))
 print(f"{model.metrics_names[1]}: {scores[1] * 100}")

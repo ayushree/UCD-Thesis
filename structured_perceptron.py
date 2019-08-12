@@ -1,17 +1,14 @@
 import pandas as pd
-import numpy as np
 import re
 import operator
-import random
 from collections import defaultdict, deque
-from itertools import combinations_with_replacement, permutations
 
 # defining relevant symbols for HMM trigram model
 # start symbol is appended to the beginning of addresses for the trigram model
 start_symbol = '*'
 # stop symbol signifies the end of an address string
 stop_symbol = 'STOP'
-rare_symbol = '_RARE_'
+new_symbol = 'NEW'
 # smoothing factor defined to account for new words seen in the test data that were not part of
 # the train data vocabulary
 smoothing_factor_lambda = 0.1
@@ -211,6 +208,10 @@ def clean_transition_count_dict():
             trigram_tags_count.pop(key)
 
 
+# function that appropriately calls functions to compute
+# 1. numerators of emission probabilities
+# 2. bigram tag combinations count
+# 3. trigram tag combinations count
 def transitions_count(data):
     data_list = pd.Series.tolist(data)
     for i in range(len(data_list)):
@@ -224,30 +225,46 @@ def transitions_count(data):
     # clean_transition_count_dict()
 
 
+# function to initialise the dictionary that will store the transition probabilities
+# for our model, we are considering a trigram HMM
+# thus we will initialise the dictionary with the frequency of trigram combinations of tags
 def init_transitions_prob_dict():
     for key in list(trigram_tags_count):
         if key not in transitions_probability.keys():
             transitions_probability[key] = float(trigram_tags_count[key])
 
 
+# function to compute transition probabilities
+# transition probability of state w given state u and state v (in that order) =
+# count(<state u, state v, state w>)/count(<state u, state v>)
 def transitions_prob():
     init_transitions_prob_dict()
     for key in list(transitions_probability):
         split_key = key.split("-")
-        bigram_tag = split_key[0] + "-" + split_key[1]
-        bigram_tag_count = bigram_tags_count[bigram_tag]
-
+        print(split_key)
+        trigram_tag = split_key[0] + "-" + split_key[1] + "-" + split_key[2]
+        trigram_tag_count = trigram_tags_count[trigram_tag]
+        # smoothing factor is also used to account for cases where the transition probability might be zero
+        # or the denominator while computing the probability might be 0
         transitions_probability[key] = float(transitions_probability[key] + smoothing_factor_lambda) / float(
-            bigram_tag_count + smoothing_factor_lambda * smoothing_factor_v)
+            trigram_tag_count + smoothing_factor_lambda * smoothing_factor_v)
 
 
+# function to calculate emission probability of each word-tag pair
 def emission_probability(prior_prob):
     for key in list(state_obs_pair_dict):
         tag = key.split("/")[1]
+        # emission probability is computed as the number of times a word, w was tagged with tag t
+        # out of all the words that have been tagged as t
+        # similar to transition probability, a smoothing factor has been used
         state_obs_pair_dict[key] = float(state_obs_pair_dict[key] + smoothing_factor_lambda) / float(
             prior_prob[tag] + smoothing_factor_lambda * smoothing_factor_v)
 
 
+# this function is part of a set of functions that have been used in feature encoding
+# more specifically to create the labels that each byte of the feature vector represents
+# this function creates the starting trigram combinations that have not been taken into account previously
+# i.e. tags of type: *-*-tag and *-tag-tag
 def create_start_link():
     for tag in valid_tags:
         curr_tag = start_symbol + "-" + start_symbol + "-" + tag
@@ -258,6 +275,8 @@ def create_start_link():
             feature_vector_labels.append(second_tag)
 
 
+# similar to the previous function, this function creates previously unaccounted for end trigram combinations
+# of the form tag-tag-STOP
 def create_end_link():
     for tag1 in valid_tags:
         for tag2 in valid_tags:
@@ -265,11 +284,15 @@ def create_end_link():
             feature_vector_labels.append(curr_tag)
 
 
+# this function creates all trigram combinations out of the given set of valid tags
+# and adds them to the set of feature labels
 def create_trigram_link():
     for trigram in trigram_tags_count.keys():
         feature_vector_labels.append(trigram)
 
 
+# this function creates word-tag pairs and adds them to the set of feature labels
+# it contains words taken from the vocabulary created earlier
 def create_words_link():
     for word in unique_words_dict_subset.keys():
         curr_tags = tags[word]
@@ -278,6 +301,10 @@ def create_words_link():
             feature_vector_labels.append(curr_word_tag)
 
 
+# for each tagged address, this function gets the trigram tag sequence:
+# for example if the address is word1/tag1 word2/tag2 word3/tag3,
+# then the tagged sequence will be
+# [*-*-tag1, *-tag1-tag2, tag1-tag2-tag3, tag2-tag3-STOP]
 def get_tag_seq(address):
     first_tag = start_symbol + "-" + start_symbol + "-" + (address[0].split("/"))[1]
     second_tag = start_symbol + "-" + (address[0].split("/"))[1] + "-" + (address[1].split("/"))[1]
@@ -293,14 +320,13 @@ def get_tag_seq(address):
     return tag_seq
 
 
+# this function encodes each address in terms of the features created above
+# it extracts the trigram tag sequences and increments the value of the respective bytes in the resultant feature vector
+# additionally, it extracts word-tag pair and increments the value of the respective bytes in the resultant feature vector
 def encode_features(address):
-    # print("in encode_features, address is: ", address)
     tag_seq = get_tag_seq(address)
 
     feature_dict = {k: 0 for k in feature_vector_labels}
-    # print("feature dict:", feature_dict)
-    # length = len(feature_dict)
-    # print(len(feature_dict))
     for tag in tag_seq:
         feature_dict[tag] += 1
     for add in address:
@@ -309,6 +335,8 @@ def encode_features(address):
     return feature_dict
 
 
+# for each valid tag, this function computes the probability that an address has of starting with it
+# it adds each probability measure to the transitions probability dictionary
 def compute_start_prob_unigram(data):
     start_p = {'PAON': 0.0, 'street': 0.0, 'city': 0.0, 'district': 0.0, 'county': 0.0}
     for index, address in data[0].iteritems():
@@ -318,6 +346,8 @@ def compute_start_prob_unigram(data):
         transitions_probability[start_symbol + "-" + start_symbol + "-" + k] = start_p[k] / len(data)
 
 
+# this function computes the probability of an address starting with a particular tag bigram sequence
+# and adds each new probability measure to the transitions probability dictionary
 def compute_start_prob_bigram(data):
     start_p = {}
     for tag1 in valid_tags:
@@ -333,6 +363,8 @@ def compute_start_prob_bigram(data):
         transitions_probability[start_symbol + "-" + k] = start_p[k] / len(data)
 
 
+# this function computes the probability of an address ending with a particular tag bigram sequence
+# and adds each new probability measure to the transitions probability dictionary
 def compute_end_prob_bigram(data):
     end_p = {}
     for tag1 in valid_tags:
@@ -348,87 +380,86 @@ def compute_end_prob_bigram(data):
         transitions_probability[k + "-" + stop_symbol] = end_p[k] / len(data)
 
 
+def set_of_tags(k):
+    if k == -1 or k == 0:
+        return {start_symbol}
+    else:
+        return valid_tags
+
+
+# this is the viterbi algorithm
+# it is a dynamic programming algorithm that computes the most optimal tag sequence
 def viterbi(address, taglist, known_words, q_values, e_values, weights_vec):
-    tagged = []
-
-    # pi[(k, u, v)]: max probability of a tag sequence ending in tags u, v at position k
-    # bp[(k, u, v)]: backpointers to recover the argmax of pi[(k, u, v)]
     pi = defaultdict(float)
+    # keys of this dictionary are in the form of a tuple: (k,u,v)
+    # it stores the maximum probability of a k-length sequence ending in tags u and v (in that order)
     bp = {}
-    # Initialization
-    pi[(0, start_symbol, start_symbol)] = 1.0
+    # keys of this dictionary are in the form of a tuple: (k,u,v)
+    # it stores the backpointers so that the entire tag sequence can be extracted easily
 
+    # we initialise the dictionary such that a 0 length sequence ending in tag sequence *-* has probability 1
+    pi[(0, start_symbol, start_symbol)] = 1.0
+    # initialising the probability of a 0 length sequence ending in tag sequence *-tag or tag-tag is 0
     for u in taglist:
         pi[(0, start_symbol, u)] = 0.0
         for v in taglist:
             pi[(0, u, v)] = 0.0
-
-    # Define tagsets S(k)
-    def S(k):
-        if k in (-1, 0):
-            return {start_symbol}
-        else:
-            return taglist
-
-        # The Viterbi algorithm
-
-    words = [word if word in known_words else rare_symbol for word in address]
+    # for the given address, we check if each word in the address belongs to our vocabulary
+    # if it does then it is stored as it is and if it doesn't, then we store 'NEW' instead signalling the word
+    # doesn't belong to our vocabulary and will thus not have any transition or emission probability associated with it
+    words = [word if word in known_words else new_symbol for word in address]
 
     n = len(words)
-
+    # we have broken down our problem from an n-length sequence to a k-length sequence where k goes from 0:n
     for k in range(1, n + 1):
-        for u in S(k - 1):
-            for v in S(k):
+        for u in set_of_tags(k - 1):
+            for v in set_of_tags(k):
+                # default max score
                 max_score = float('-Inf')
+                # default tag for max score
                 max_tag = None
-                for w in S(k - 2):
-
-                    # if e_values.get((words[k - 1] + "/" + v), 0) != 0:
-                    # print("entering loop")
-                    # print("pi: ", pi.get((k - 1, w, u), log_prob_of_zero))
-                    # print("q: ", q_values[w + "-" + u + "-" + v])
-                    # print("e: ", e_values[words[k - 1] + "/" + v])
-                    # print("testing:")
-                    # if (k - 1, w, u) in pi.keys():
-                    #     print("yes, val: ", pi[(k - 1, w, u)])
-                    # else:
-                    #     print("should be -1000")
+                for w in set_of_tags(k - 2):
+                    # check if word-tag pair is in emission probability dictionary
                     if (words[k - 1] + "/" + v) in e_values.keys():
+                        # if it is, we extract the emission probability
                         e_val = e_values[(words[k - 1] + "/" + v)]
+                        # and the current weight associated with it
                         e_val_wt = weights_vec[words[k - 1] + "/" + v]
                     else:
+                        # if it's not, then we assign a very small arbitrary emission probability to it
                         e_val = 0.001
+                        # and make the weight associated with it also arbitrarily small
                         e_val_wt = 0.0000000000000001
-                    # print("k-1,w,u:", k - 1, w, u)
-
+                    # now we check the max probability of the k-1 length tag sequence ending
+                    # in w and u is the default score
                     if pi[k - 1, w, u] == float('-Inf'):
+                        # if it is then we take the value to be 0 so that it doesn't contribute to the final score
                         pi_val = 0.0
                     else:
+                        # if it is not, then we take the value as it is
                         pi_val = pi[k - 1, w, u]
-                    # print("pi score: ", pi_val)
+                    # computing the score for the k length sequence using
+                    # weighted transition probabilities
+                    # weighted emission probabilities
+                    # max probability of k-1 length tag sequence
                     score = pi_val + \
                             (weights_vec[w + "-" + u + "-" + v] * q_values[w + "-" + u + "-" + v]) + \
                             (e_val * e_val_wt)
-                    # print("score", score)
+                    # extracting the maximum score
                     if score > max_score:
                         max_score = score
                         max_tag = w
+                # storing the maximum score and tag for the k-length sequence
                 pi[(k, u, v)] = max_score
                 bp[(k, u, v)] = max_tag
-
+    # executing the same process as above for the last bigram tag sequence: tag-tag-STOP
     max_score = float('-Inf')
     u_max, v_max = None, None
     tags = deque()
-    for u in S(n - 1):
-        for v in S(n):
-            # if u + "-" + v + "-" + stop_symbol in q_values.keys():
-            # print(pi.get((n, u, v), -1000))
-            # print(q_values[u + "-" + v + "-" + stop_symbol])
+    for u in set_of_tags(n - 1):
+        for v in set_of_tags(n):
             score = pi.get((n, u, v), 0.0) + \
                     q_values[u + "-" + v + "-" + stop_symbol]
-            # print("Score: ", score)
-            # print("u: ", u)
-            # print("v: ", v)
             if score > max_score:
                 max_score = score
                 u_max = u
@@ -436,197 +467,172 @@ def viterbi(address, taglist, known_words, q_values, e_values, weights_vec):
 
     tags.append(v_max)
     tags.append(u_max)
-    # print(tags)
+    # traversing the back pointers to get the reversed tag sequence
     for i, k in enumerate(range(n - 2, 0, -1)):
         if (k + 2, tags[i + 1], tags[i]) in bp.keys():
             tags.append(bp[(k + 2, tags[i + 1], tags[i])])
     tags.reverse()
 
+    # recreating the address with each part tagged according to the back pointers
     tagged_sentence = []
     for j in range(0, n):
         tagged_sentence.append(address[j] + '/' + tags[j])
-    # print(tagged_sentence)
-    # tagged_sentence.append('\n')
 
     return tagged_sentence
 
 
-# def viterbi()
+# structured perceptron algorithm
+# computes the most probable tag sequence using a weighted version of the viterbi algorithm during training
 def structured_perceptron(data, weights_vec):
-    # weights_vec = {k: 0 for k in feature_vector_labels}
     print("training!")
+    # iterating over the data
     for index, address in data[0].iteritems():
         if index % 10000 == 0:
             print(index)
         address = address.split(" ")
+        # extracting the word sequence from the address
         word_seq = []
         for part in address:
             part = part.split("/")[0]
             word_seq.append(part)
-        # print("actual address: ", address)
+        # encoding the actual tagged address
         encoded_actual_address = encode_features(address)
-        # print("encoded actual address: ", encoded_actual_address)
-
+        # calling the viterbi algorithm with the current set of weights
         result = viterbi(word_seq, valid_tags, known_words, transitions_probability, state_obs_pair_dict, weights_vec)
-        # print("predicted tag seq: ", result)
+        # encoding the predicted tagged address
         encoded_predicted_address = encode_features(result)
-        # print("encoded predicted tag seq: ", encoded_predicted_address)
+        # comparing the feature encodings of the actual and predicted tagged addresses
         if len(encoded_predicted_address) == len(encoded_actual_address):
             for key in encoded_actual_address.keys():
+                # if the predicted and actual tag sequences are the same, the weights are left unchanged
                 diff = encoded_actual_address[key] - encoded_predicted_address[key]
                 if diff != 0:
+                    # if they are not the same, then the weights are updated to account for misclassification
                     weights_vec[key] += diff
         else:
             print("lengths don't match")
-    # weights_vec += diff
-    # print("\n")
+
     return weights_vec
 
 
-# def dot(word_list, predicted_tag_tuple, weights_vec):
-#     address = ['']
-#     for i in range(len(word_list)):
-#         tagged_word = word_list[i] + "/" + predicted_tag_tuple[i]
-#         address.append(tagged_word)
-#     encoded_vec = phi(address)
-#     dot_product = 0
-#     for i in range(len(encoded_vec)):
-#         dot_product += encoded_vec[i] * weights_vec[i]
-#     return (dot_product, encoded_vec, address)
-#
-#
-# def actual_structured_perceptron(data):
-#     weights_vec = []
-#     zero_vec = []
-#
-#     for i in range(len(data)):
-#         weights_vec.append(0)
-#         zero_vec.append(0)
-#
-#     for index, address in data[0].iteritems():
-#         print(index)
-#         max_score = float('-Inf')
-#         most_likely_tag_seq = []
-#         set_of_tag_seq = {}
-#         address = address.split(" ")
-#         print(address)
-#         phi_of_actual_output = phi(address)
-#         phi_of_predicted_vec = []
-#         word_seq = []
-#         actual_tag_seq = []
-#         for part in address:
-#             if part != '':
-#                 word = part.split("/")[0]
-#                 tag = part.split("/")[1]
-#                 word_seq.append(word)
-#                 actual_tag_seq.append(tag)
-#         n = len(word_seq)
-#         combinations = combinations_with_replacement(valid_tags, n)
-#         for i in list(combinations):
-#             permutations_of_i = permutations(list(i), n)
-#             for j in list(permutations_of_i):
-#                 if j not in set_of_tag_seq.keys():
-#                     set_of_tag_seq[j] = 0
-#         for key in set_of_tag_seq.keys():
-#             result = dot(word_seq, key, weights_vec)
-#             score = result[0]
-#             if score > max_score:
-#                 max_score = score
-#                 most_likely_tag_seq = result[1]
-#                 phi_of_predicted_vec = result[2]
-#         print(most_likely_tag_seq)
-#         diff = phi_of_actual_output - phi_of_predicted_vec
-#         if diff != zero_vec:
-#             weights_vec += diff
-#     return weights_vec
-
+# function used to predict most probable tag sequence for test data
+# requires final set of weights computed during training by the structured perceptron
 def predict(df, weights):
     print("testing!!")
-    matches0 = 0
-    matches1 = 0
-    matches2 = 0
-    matches3 = 0
+    matches = {}
+    total_actual = {}
+    total_predicted = {}
+    accuracy_numerator = 0
+    for tag in valid_tags:
+        matches[tag] = 0
+        total_actual[tag] = 0
+        total_predicted[tag] = 0
     for index, address in df[0].iteritems():
-        diff = 0
         if index % 1000 == 0:
             print(index)
+        # extracting the word and tag sequence from the test data
         address = address.split(" ")
-        tag_seq = []
+        actual_tag_seq = []
+        predicted_tag_seq = []
         word_seq = []
         for part in address:
             word = part.split("/")[0]
             tag = part.split("/")[1]
             word_seq.append(word)
-            tag_seq.append(tag)
-
+            actual_tag_seq.append(tag)
+        # using the viterbi algorithm with the final set of weights to predict the most probable tag sequence
         result = viterbi(word_seq, valid_tags, known_words, transitions_probability, state_obs_pair_dict, weights)
-        actual_encoded_add = encode_features(address)
-        predicted_encoded_add = encode_features(result)
-        for key in actual_encoded_add.keys():
-            if actual_encoded_add[key] != predicted_encoded_add[key]:
-                diff += 1
+        for part in result:
+            predicted_tag_seq.append((part.split("/"))[1])
+        # encoding both the actual and predicted tagged addresses
+        # actual_encoded_add = encode_features(address)
+        # predicted_encoded_add = encode_features(result)
+        # computing test accuracy
+
+        # for key in actual_encoded_add.keys():
+        #     if actual_encoded_add[key] != predicted_encoded_add[key]:
+        #         diff += 1
+        # if diff == 0:
+        #     matches0 += 1
+        diff = 0
+        for i in range(len(actual_tag_seq)):
+            total_actual[actual_tag_seq[i]] += 1
+            total_predicted[predicted_tag_seq[i]] += 1
+            if actual_tag_seq[i] == predicted_tag_seq[i]:
+                matches[actual_tag_seq[i]] += 1
+            else:
+                diff = 1
         if diff == 0:
-            matches0 += 1
-        if diff <= 1:
-            matches1 += 1
-        if diff <= 2:
-            matches2 += 1
-        if diff <= 3:
-            matches3 += 1
-    return [matches0 / len(df), matches1 / len(df), matches2 / len(df), matches3 / len(df)]
+            accuracy_numerator += 1
 
-    # print("actual test vec:", address)
-    # print("test predicted vec:", result)
+    return [accuracy_numerator / len(df), matches, total_predicted, total_actual]
 
 
+# reading the train and test data from file
 df = read_data(input_train_fp)
 test_df = read_data(input_test_fp)
-# print("original df", df)
+# tagging both sets of data
 tagged_train_data = tag_train_data(df)
 tagged_test_data = tag_train_data(test_df)
 
+# joining tagged columns into a single string for both train and test data
+new_df = join_cols(tagged_train_data)
 joined_test_data = join_cols(tagged_test_data)
 
+# computing a subset of the entire vocabulary in the addresses
+# the distribution of frequency of each word was considered and the threshold was chosen to be 5
 unique_words_dict_subset = {key: value for key, value in complete_unique_words_dict.items() if value > 5.0}
+# storing the chosen subset of vocabulary in a list
 known_words = [k for k, v in unique_words_dict_subset.items()]
-# print("\nknown words", known_words)
 
+# computing the prior probability of tags
 prior = compute_prior_prob(tags)
+# computing the most frequent tag and letting that be the default tag
 default_tag = max(prior.items(), key=operator.itemgetter(1))[0]
-new_df = join_cols(tagged_train_data)
 
+# initialising the bigram and trigram dictionaries
 init_bigram_dict()
 init_trigram_dict(bigram_tags_count)
+
+# computing transition probabilities for each trigram tag sequence
 transitions_count(new_df)
 transitions_prob()
+
+# computing emission probability of each word-tag pair
+# where the word is in the new vocabulary
 emission_probability(tag_count)
 
+# computing previously unaccounted for transition probabilities
 compute_start_prob_unigram(new_df)
 compute_start_prob_bigram(new_df)
 compute_end_prob_bigram(new_df)
 
-# print("transitions_probability", transitions_probability)
-# create_words_link()
-# print(feature_vector_labels)
-# print("emission prob", state_obs_pair_dict)
-# for index, address in new_df[0].iteritems():
-#     phi(address)
-
+# computing feature encoding labels
 create_start_link()
 create_end_link()
 create_trigram_link()
 create_words_link()
-# print(feature_vector_labels)
-# print(len(feature_vector_labels))
-epochs = 20
+
+# number of epochs during training
+epochs = 60
+# initialising weights vector
 training_weights = {k: 0 for k in feature_vector_labels}
 for epoch in range(epochs):
-    print(epoch)
+    print("epoch", epoch + 1)
+    # training such that the weights from the previous epoch is fed to the next one
     training_weights = structured_perceptron(new_df, training_weights)
     print(training_weights)
-
+# predicting on test data and storing accuracy
+precision = {}
+recall = {}
 accuracy_vec = predict(joined_test_data, training_weights)
 print("exact accuracy:", accuracy_vec[0])
-print("one wrong tag accuracy:", accuracy_vec[1])
-print("two wrong tags accuracy:", accuracy_vec[2])
-print("three wrong tags accuracy", accuracy_vec[3])
+# print("correctly predicted tags:", accuracy_vec[1])
+# print("total predicted per tag:", accuracy_vec[2])
+# print("total actual per tag:", accuracy_vec[3])
+for key in accuracy_vec[1].keys():
+    precision[key] = accuracy_vec[1][key] / accuracy_vec[2][key]
+    recall[key] = accuracy_vec[1][key] / accuracy_vec[3][key]
+
+print("precision: ", precision)
+print("recall", recall)
