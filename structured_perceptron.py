@@ -2,6 +2,7 @@ import pandas as pd
 import re
 import operator
 from collections import defaultdict, deque
+import matplotlib.pyplot as plt
 
 # defining relevant symbols for HMM trigram model
 # start symbol is appended to the beginning of addresses for the trigram model
@@ -21,6 +22,7 @@ smoothing_factor_v = len(valid_tags)
 # specifying paths for input train and test data
 input_train_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_train.csv"
 input_test_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_test.csv"
+input_validation_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_validation.csv"
 
 tags = {}
 # dictionary to keep track of frequency of bigram combinations of tags in the train data
@@ -37,6 +39,8 @@ state_obs_pair_dict = {}
 
 # dictionary that keeps track of the frequency of each tag for all addresses
 tag_count = {}
+test_tag_count = {}
+
 
 # dictionary to store all the unique words and their counts extracted from the addresses
 complete_unique_words_dict = {}
@@ -72,7 +76,7 @@ def get_word_corpus(word):
 
 
 # function to assign tags to individual words for all addresses
-def tag_train_data(data):
+def tag_train_data(data, train_flag):
     # extracts the relevant subset of data
     subset_data = data[['PAON', 'street', 'city', 'district', 'county']]
     for col in subset_data.columns:
@@ -90,7 +94,9 @@ def tag_train_data(data):
                         length = len(word)
                         # if the condition is satisfied, the characters of the word are converted to uppercase D
                         word = 'D' * length
-                    get_word_corpus(word)
+                    # build the vocabulary only from the train data
+                    if train_flag == 1:
+                        get_word_corpus(word)
                     # tagging each word
                     tagged_word = word + "/" + col
                     tagged_part = tagged_part + " " + tagged_word
@@ -103,6 +109,7 @@ def tag_train_data(data):
                 tagged_col.append(tagged_part)
         i = 0
         for index, address in subset_data[col].iteritems():
+
             if not pd.isna(subset_data.iloc[index][col]):
                 # rewriting the tagged address in the original dataframe
                 subset_data.iloc[index][col] = tagged_col[i]
@@ -241,7 +248,7 @@ def transitions_prob():
     init_transitions_prob_dict()
     for key in list(transitions_probability):
         split_key = key.split("-")
-        print(split_key)
+        # print(split_key)
         trigram_tag = split_key[0] + "-" + split_key[1] + "-" + split_key[2]
         trigram_tag_count = trigram_tags_count[trigram_tag]
         # smoothing factor is also used to account for cases where the transition probability might be zero
@@ -508,7 +515,7 @@ def structured_perceptron(data, weights_vec):
                 diff = encoded_actual_address[key] - encoded_predicted_address[key]
                 if diff != 0:
                     # if they are not the same, then the weights are updated to account for misclassification
-                    weights_vec[key] += diff
+                    weights_vec[key] += 0.01 * diff
         else:
             print("lengths don't match")
 
@@ -519,6 +526,8 @@ def structured_perceptron(data, weights_vec):
 # requires final set of weights computed during training by the structured perceptron
 def predict(df, weights):
     print("testing!!")
+    for tag in valid_tags:
+        test_tag_count[tag] = 0
     matches = {}
     total_actual = {}
     total_predicted = {}
@@ -540,6 +549,7 @@ def predict(df, weights):
             tag = part.split("/")[1]
             word_seq.append(word)
             actual_tag_seq.append(tag)
+            test_tag_count[tag] += 1
         # using the viterbi algorithm with the final set of weights to predict the most probable tag sequence
         result = viterbi(word_seq, valid_tags, known_words, transitions_probability, state_obs_pair_dict, weights)
         for part in result:
@@ -569,15 +579,18 @@ def predict(df, weights):
 
 
 # reading the train and test data from file
-df = read_data(input_train_fp)
+train_df = read_data(input_train_fp)
 test_df = read_data(input_test_fp)
+validation_df = read_data(input_validation_fp)
 # tagging both sets of data
-tagged_train_data = tag_train_data(df)
-tagged_test_data = tag_train_data(test_df)
+tagged_train_data = tag_train_data(train_df, 1)
+tagged_test_data = tag_train_data(test_df, 0)
+tagged_validation_data = tag_train_data(validation_df, 0)
 
 # joining tagged columns into a single string for both train and test data
 new_df = join_cols(tagged_train_data)
 joined_test_data = join_cols(tagged_test_data)
+joined_validation_data = join_cols(tagged_validation_data)
 
 # computing a subset of the entire vocabulary in the addresses
 # the distribution of frequency of each word was considered and the threshold was chosen to be 5
@@ -613,20 +626,53 @@ create_end_link()
 create_trigram_link()
 create_words_link()
 
+print(tag_count)
+print(test_tag_count)
 # number of epochs during training
-epochs = 60
+epochs = 1
 # initialising weights vector
 training_weights = {k: 0 for k in feature_vector_labels}
+validation_accuracy = []
+epochs_vec = [i + 1 for i in range(epochs)]
+
+
+def plot_validation_accuracy(validation_acc):
+    fig, ax = plt.subplots()
+    ax.plot(epochs_vec, validation_acc)
+
+    ax.set(xlabel='Epochs', ylabel='validation accuracy',
+           title='Validation Accuracy per Epoch')
+    ax.grid()
+
+    fig.savefig("validation_acc.png")
+    plt.show()
+
+
 for epoch in range(epochs):
     print("epoch", epoch + 1)
     # training such that the weights from the previous epoch is fed to the next one
     training_weights = structured_perceptron(new_df, training_weights)
     print(training_weights)
+    print("predicting on validation set:")
+    validation_acc_vec = predict(joined_validation_data, training_weights)
+    print("validation accuracy:", validation_acc_vec[0])
+    validation_accuracy.append(validation_acc_vec[0])
+    validation_precision = {}
+    validation_recall = {}
+    for key in validation_acc_vec[1].keys():
+        validation_precision[key] = validation_acc_vec[1][key] / validation_acc_vec[2][key]
+        validation_recall[key] = validation_acc_vec[1][key] / validation_acc_vec[3][key]
+    print("validation precision:", validation_precision)
+    print("validation recall:", validation_recall)
+plot_validation_accuracy(validation_accuracy)
+print("final validation accuracy vector:")
+print(validation_accuracy)
 # predicting on test data and storing accuracy
 precision = {}
 recall = {}
 accuracy_vec = predict(joined_test_data, training_weights)
 print("exact accuracy:", accuracy_vec[0])
+print("test set tag count:", test_tag_count)
 # print("correctly predicted tags:", accuracy_vec[1])
 # print("total predicted per tag:", accuracy_vec[2])
 # print("total actual per tag:", accuracy_vec[3])

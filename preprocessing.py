@@ -8,7 +8,7 @@ import numpy as np
 stpwrds = stopwords.words('english')
 
 # specifying path for the input file
-input_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/addresses_year.csv"
+input_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/addresses_month.csv"
 
 
 # function that reads a csv file containing appropriate housing data
@@ -114,8 +114,9 @@ def normalise(address):
 
 
 # specifying output csv file path for both test and train data
-output_train_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_year_addresses_train.csv"
-output_test_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_year_addresses_test.csv"
+output_train_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_train.csv"
+output_test_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_test.csv"
+output_validation_file_path = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_validation.csv"
 
 
 # driver function that takes the path for the input file, output train file and output test file as input
@@ -127,7 +128,7 @@ def standardise_data(input_path, output_train_path, output_test_path):
 
     col_count = 0
     for col in df.columns:
-        if col != 'UID' and col != 'SAON' and col != 'locality':
+        if col != 'UID' and col != 'SAON' and col != 'locality' and col != 'price' and col != 'postcode':
             add_col = df[col]
             count = 0
             col_count += 1
@@ -145,10 +146,15 @@ def standardise_data(input_path, output_train_path, output_test_path):
     df_copy = df
     train_df = df_copy.sample(frac=0.75, random_state=0)
     test_df = df_copy.drop(train_df.index)
-    print("train df", train_df)
+    train_df_copy = train_df
+    final_train_df = train_df_copy.sample(frac=0.8, random_state=0)
+    validation_df = train_df_copy.drop(final_train_df.index)
+    print("train df", final_train_df)
     print("test df", test_df)
-    write_csv(output_train_path, train_df)
+    print("validation df", validation_df)
+    write_csv(output_train_path, final_train_df)
     write_csv(output_test_path, test_df)
+    write_csv(output_validation_file_path, validation_df)
     print("written to file!!!!!")
 
 

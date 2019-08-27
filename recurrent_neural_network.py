@@ -8,9 +8,9 @@ from keras.optimizers import Adam
 from keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 from keras import backend as K
+import tensorflow as tf
 
 input_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses.csv"
-input_test_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses_test.csv"
 
 start_symbol = '*'
 stop_symbol = 'STOP'
@@ -39,6 +39,12 @@ tags_vocab = {}
 
 word_encode_key = {}
 tag_encode_key = {}
+
+precision = {}
+recall = {}
+matches = {}
+total_predicted = {}
+total_actual = {}
 
 
 def read_data(file):
@@ -190,11 +196,34 @@ def ignore_class_accuracy(to_ignore=0):
     return true_accuracy
 
 
+def compute_test_acc(predicted_classes, actual_classes):
+    accuracy = 0.0
+    for j in range(len(valid_tags)):
+        matches[j + 1] = 0
+        total_predicted[j + 1] = 0
+        total_actual[j + 1] = 0
+    for j in range(len(predicted_classes)):
+        match = 1.0
+        for k in range(len(predicted_classes[j])):
+            if predicted_classes[j][k] in total_predicted.keys():
+                total_predicted[predicted_classes[j][k]] += 1
+            if actual_classes[j][k] in total_actual.keys():
+                total_actual[actual_classes[j][k]] += 1
+            if predicted_classes[j][k] != actual_classes[j][k]:
+                match = 0.0
+            else:
+                if predicted_classes[j][k] in matches.keys():
+                    matches[predicted_classes[j][k]] += 1
+        accuracy += match
+    accuracy = accuracy / len(predicted_classes)
+    return [accuracy, matches, total_actual, total_predicted]
+
+
 input_train_data = read_data(input_fp)
 tagged_data = tag_train_data(input_train_data)
 joined_data = join_cols(tagged_data)
 
-# print(joined_train_data)
+print(joined_data)
 sentences, sentence_tags = [], []
 
 for index, address in joined_data[0].iteritems():
@@ -231,6 +260,9 @@ train_sentences_output = pad_sequences(train_sentences_output, maxlen=len_longes
 test_sentences_input = pad_sequences(test_sentences_input, maxlen=len_longest_sen, padding='post')
 test_sentences_output = pad_sequences(test_sentences_output, maxlen=len_longest_sen, padding='post')
 
+train_len = len(train_sentences_input)
+test_len = len(test_sentences_input)
+
 model = Sequential()
 model.add(InputLayer(input_shape=(len_longest_sen,)))
 model.add(Embedding(len(word_encode_key), 128))
@@ -238,17 +270,22 @@ model.add(Bidirectional(LSTM(256, return_sequences=True)))
 model.add(TimeDistributed(Dense(len(tag_encode_key))))
 model.add(Activation('softmax'))
 
-model.compile(loss='categorical_crossentropy', optimizer=Adam(0.001), metrics=['accuracy'])
+model.compile(loss='categorical_crossentropy', optimizer=Adam(0.001), metrics=[ignore_class_accuracy(0)])
 
 model.summary()
-# print("using inbuilt one hot encoding")
-# print(to_categorical(train_sentences_output, num_classes=len(tag_encode_key)))
-# print("using diff function")
-# test = to_categorical2(train_sentences_output, len(tag_encode_key))
-# print(test)
 
-model.fit(train_sentences_input, to_categorical(train_sentences_output, num_classes=len(tag_encode_key)), epochs=1,
+model.fit(train_sentences_input, to_categorical(train_sentences_output, num_classes=len(tag_encode_key)), epochs=4,
           validation_split=0.2)
 
-scores = model.evaluate(test_sentences_input, to_categorical(test_sentences_output, num_classes=len(tag_encode_key)))
-print(f"{model.metrics_names[1]}: {scores[1] * 100}")
+predicted_test_output = model.predict_classes(test_sentences_input)
+
+# for i in range(len(test_sentences_input)):
+#     print("input:", test_sentences_input[i], "output:", predicted_test_output[i])
+
+test_acc_vec = compute_test_acc(predicted_test_output, test_sentences_output)
+print("test accuracy:", test_acc_vec[0])
+for key in test_acc_vec[1].keys():
+    precision[key] = test_acc_vec[1][key] / test_acc_vec[3][key]
+    recall[key] = test_acc_vec[1][key] / test_acc_vec[2][key]
+print("test precision:", precision)
+print("test recall:", recall)
