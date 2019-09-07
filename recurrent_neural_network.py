@@ -8,7 +8,6 @@ from keras.optimizers import Adam
 from keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 from keras import backend as K
-import tensorflow as tf
 
 input_fp = "/Users/ayushree/Desktop/ResearchProject/StatisticalAnalysisUsingH2O/cleaned_month_addresses.csv"
 
@@ -279,8 +278,6 @@ model.fit(train_sentences_input, to_categorical(train_sentences_output, num_clas
 
 predicted_test_output = model.predict_classes(test_sentences_input)
 
-# for i in range(len(test_sentences_input)):
-#     print("input:", test_sentences_input[i], "output:", predicted_test_output[i])
 
 test_acc_vec = compute_test_acc(predicted_test_output, test_sentences_output)
 print("test accuracy:", test_acc_vec[0])
