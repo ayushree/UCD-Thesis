@@ -1,6 +1,3 @@
-# Geowox: Technical Assignment for Data Engineer-Graduate Position
-# written by Ayushree Gangal
-
 # importing the required libraries
 import pandas as pd
 import re
