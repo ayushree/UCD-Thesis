@@ -1,0 +1,57 @@
+UID,price,postcode,PAON,SAON,street,locality,city,district,county
+{87E1551D-E40A-6405-E053-6C04A8C0B2EE},475000,sw7 4rw,14,flat 22,grenville place,,london,kensington chelsea,greater london
+{87E1551D-E41B-6405-E053-6C04A8C0B2EE},335000,w10 6hx,4,,scampston mews,,london,kensington chelsea,greater london
+{87E1551D-FD79-6405-E053-6C04A8C0B2EE},128000,np23 4rb,40a,,somerset street,brynmawr,ebbw vale,blaenau gwent,blaenau gwent
+{87E1551E-0513-6405-E053-6C04A8C0B2EE},219950,ex16 8lf,two hoots,,,pennymoor,tiverton,mid devon,devon
+{87E1551E-05E8-6405-E053-6C04A8C0B2EE},99500,ex10 9es,chegworth,flat 1,arcot road,,sidmouth,east devon,devon
+{87E1551E-2693-6405-E053-6C04A8C0B2EE},342500,ol3 5ur,sandbed farm barn,,hull mill lane,delph,oldham,oldham,greater manchester
+{87E1551E-2948-6405-E053-6C04A8C0B2EE},150000,wn4 8th,363,,bolton road,ashton makerfield,wigan,wigan,greater manchester
+{87E1551E-2994-6405-E053-6C04A8C0B2EE},370000,gl16 7ny,treetops,,,hillersland,coleford,forest dean,gloucestershire
+{87E1551E-3EC2-6405-E053-6C04A8C0B2EE},126000,po33 2sq,5,,well street,,ryde,isle wight,isle wight
+{87E1551E-4487-6405-E053-6C04A8C0B2EE},385000,ct21 5bw,1,,malthouse hill,,hythe,shepway,kent
+{87E1551E-5150-6405-E053-6C04A8C0B2EE},55000,ln5 8ng,1a,,stanley street,,lincoln,lincoln,lincolnshire
+{87E1551E-66D7-6405-E053-6C04A8C0B2EE},340000,w2 3he,29,,gloucester mews,,london,city westminster,greater london
+{87E1551E-8964-6405-E053-6C04A8C0B2EE},422000,ip2 0dd,elton park works,,elton park business centre,,ipswich,ipswich,suffolk
+{87E1551E-8EFA-6405-E053-6C04A8C0B2EE},295000,ta5 1ed,25,,millands lane,kilve,bridgwater,somerset west taunton,somerset
+{87E1551E-AE15-6405-E053-6C04A8C0B2EE},129950,ch7 3ae,garden cottage,,chester road,,buckley,flintshire,flintshire
+{87E1551E-B433-6405-E053-6C04A8C0B2EE},50000,wv14 8rp,unit 3,,perry street industrial estate,,bilston,wolverhampton,west midlands
+{87E1551E-C4A7-6405-E053-6C04A8C0B2EE},115000,ls29 9an,kings house 40,flat 5,kings road,,ilkley,bradford,west yorkshire
+{87E1551E-C533-6405-E053-6C04A8C0B2EE},100000,ls29 9an,kings house 40,flat 4,kings road,,ilkley,bradford,west yorkshire
+{87E1551E-29DF-6405-E053-6C04A8C0B2EE},370000,gl16 7ny,treetops,,,hillersland,coleford,forest dean,gloucestershire
+{87E1551E-2A9B-6405-E053-6C04A8C0B2EE},370000,gl16 7ny,treetops,,,hillersland,coleford,forest dean,gloucestershire
+{87E1551E-4AF7-6405-E053-6C04A8C0B2EE},159000,pr2 2xb,52,,mountbatten close,ashton ribble,preston,preston,lancashire
+{87E1551E-77BD-6405-E053-6C04A8C0B2EE},490000,yo26 9td,langdale lodge,,main street,little ouseburn,york,harrogate,north yorkshire
+{87E1551E-9E52-6405-E053-6C04A8C0B2EE},110715,se28 0gd,tidlock house,25,erebus drive,,london,greenwich,greater london
+{DC5DD9A5-5193-4DB7-8FC6-018DE0B7A69B},395000,se16 4jd,9,,elephant lane,,london,southwark,greater london
+{8F22EA46-9129-47CE-9A52-0DC140196F58},94798,wa9 3hx,103a,,hoghton road,,st helens,st helens,merseyside
+{5956BF00-610B-4D39-A67E-E3C8CA291BBC},380000,w1k 4ba,29,flat,avery row,london,london,city westminster,greater london
+{CDC5E219-6F8F-4156-B2BD-0D339688C1A0},205000,gu30 7lg,lake house cottages,4,haslemere road,liphook,liphook,east hampshire,hampshire
+{4C8128B2-EF80-4945-A0F1-EBB25C8D8D8D},126500,bs21 6er,2 moor villas 2,,moor lane,,clevedon,north somerset,north somerset
+{02E3958B-4925-49F4-AB40-0E34A2B2EA84},230000,n4 4hu,6,flat 6,mount pleasant crescent,hornsey,london,haringey,greater london
+{0ACB7178-4D87-490D-B095-0E7DC39371E8},120250,se28 0gd,tidlock house,11,erebus drive,,london,greenwich,greater london
+{9F9DB5C3-1A04-4726-8D38-43FD8382B924},133000,bs21 6er,2 moor villas 2,,moor lane,,clevedon,north somerset,north somerset
+{3DC383C5-9452-4DB1-9340-3D8E9D3E41D7},160100,wr5 2jp,35,,cannon street,,worcester,worcester,worcestershire
+{0C8CC000-91E6-452F-B9BF-486A15D65818},108500,wf16 0pw,independent house 125,apartment 18,high street,,heckmondwike,kirklees,west yorkshire
+{EB853E98-5784-4D63-9276-3DC010561DAA},276500,n4 4hu,6,flat 1,mount pleasant crescent,hornsey,london,haringey,greater london
+{26AD26C0-3341-4A04-8BA4-8A9B70F1A823},256000,rh5 4re,7,,anstiebury close,beare green,dorking,mole valley,surrey
+{25E7874C-F685-4225-95DB-87139FBE0041},164995,sa12 6an,41,,mariners quay,,port talbot,neath port talbot,neath port talbot
+{8B5F17DD-AA02-401F-97C4-83ADB2CE8FB4},115000,ct19 5qr,sancler house,,walton road,,folkestone,shepway,kent
+{659B65F4-FCB7-43EC-9164-842F1EC76FFE},275000,rh5 4re,3,,anstiebury close,beare green,dorking,mole valley,surrey
+{7FC1E982-4F11-4D14-91F5-D3C53F91DE32},199950,yo42 4jl,springfield bank,,,bielby,york,east riding yorkshire,east riding yorkshire
+{B50B3941-5477-4E3C-B08F-D767F3D1B7CD},120000,b79 7ru,28,,cygnet drive,,tamworth,tamworth,staffordshire
+{18376FC6-F906-42AE-8FDB-E0DBEBEBE985},400000,mk18 5jz,clock tower,,dadford road,stowe,buckingham,aylesbury vale,buckinghamshire
+{2A289EA1-7FD8-CDC8-E050-A8C063054829},230000,se20 7hw,69a,,high street,,london,bromley,greater london
+{B4EC643A-ADA0-4939-98BB-1D6F2F4D52F5},274000,rh5 4re,16,,anstiebury close,beare green,dorking,mole valley,surrey
+{9C6AB18E-97A7-4EA0-BABA-3095E13128AC},94500,bs13 8pq,76,,queens road,bishopsworth,bristol,city bristol,city bristol
+{F3ED712A-12CA-41AB-86D1-56C7F1D3154B},122000,le4 0bw,29f,,larchmont road,,leicester,leicester,leicester
+{59FEED9B-47D9-4560-BAF1-4C4FFF7E8AC1},595000,gl7 5qe,hideaway cottage,,cricklade road,south cerney,cirencester,cotswold,gloucestershire
+{48679090-A071-436B-87DB-5AB8978C74D2},235000,hu13 0el,21,,southfield,,hessle,east riding yorkshire,east riding yorkshire
+{BA7112C0-B6DA-461B-B0E1-5B380802CB8C},196950,cf35 6lp,4,,tywod vale,pencoed,bridgend,bridgend,bridgend
+{C5B80F97-E586-4A35-9E33-62C844B2C675},425000,bh13 6hf,cerne abbas 46,45,avenue,,poole,bournemouth christchurch poole,bournemouth christchurch poole
+{6AEEC729-51A2-4B49-8113-6A38BAE2E5DE},132000,bs21 6er,1 moor villas 1,,moor lane,,clevedon,north somerset,north somerset
+{E73B1D4D-BDE4-41F7-BC4E-862623AE1826},138500,bs6 5pj,53,garden flat,arley hill,,bristol,city bristol,city bristol
+{A8320732-1C9C-442C-B5D6-96235894A59A},425000,bh13 6hf,cerne abbas 46,50,avenue,,poole,bournemouth christchurch poole,bournemouth christchurch poole
+{F15AD7B4-7A7D-43BC-93CB-A566CD33ABE2},250000,rh5 4re,6,,anstiebury close,beare green,dorking,mole valley,surrey
+{05B68DA7-8224-4D2B-A37C-BF8FD17DB20C},90000,bd24 0be,2,,church street,giggleswick,settle,craven,north yorkshire
+{1E62019F-ABA9-4600-B411-C3CC74020556},130000,e17 3al,147a 149a,,hoe street,,london,waltham forest,greater london
+{8AA9C641-2B71-4363-A668-BCCF94C1C12B},190000,se20 8jb,160a,,maple road,,london,bromley,greater london
